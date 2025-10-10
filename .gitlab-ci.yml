@@ -18,6 +18,7 @@ pages:
     - echo "🛠️ Building SerialAssistant site..."
     - bun run build
     - echo "✅ Build complete! Moving 'dist' to 'public' for GitLab Pages..."
+    - mv public public_backup || true  # 备份旧的 public 目录（如果存在）
     - mv dist public
 
   artifacts:
