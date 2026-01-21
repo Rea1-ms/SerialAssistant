@@ -1,0 +1,67 @@
+# .gitlab-ci.yml
+
+image: oven/bun:alpine
+
+cache:
+  key:
+    files:
+      - bun.lock
+  paths:
+    - node_modules/
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+pages:
+  stage: deploy
+
+  script:
+    - echo "🚀 Installing dependencies with Bun..."
+    - bun install --frozen-lockfile
+    - echo "🛠️ Building SerialAssistant site..."
+    - bun run build
+    - echo "✅ Build complete! Moving 'dist' to 'public' for GitLab Pages..."
+    - mv public public_backup || true  # 备份旧的 public 目录（如果存在）
+    - mv dist public
+
+  artifacts:
+    paths:
+      - public
+
+  # --- 这是真正满足你需求的 rules ---
+  rules:
+    # 规则一：如果提交到的是默认主分支
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        ENVIRONMENT_NAME: "production"
+        AUTO_STOP_IN: "never"
+      when: on_success
+
+    # 规则二：如果提交到的不是默认主分支（即其他所有分支）
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      variables:
+        ENVIRONMENT_NAME: "review/$CI_COMMIT_REF_NAME"
+        AUTO_STOP_IN: "1 week"
+      when: on_success
+
+  environment:
+    name: $ENVIRONMENT_NAME
+    auto_stop_in: $AUTO_STOP_IN
+    on_stop: stop_review
+
+stop_review:
+  stage: deploy
+  script:
+    - echo "Stopping review environment..."
+
+  environment:
+    name: $ENVIRONMENT_NAME
+    action: stop
+
+  rules:
+    # 保持这个规则，让停止按钮只出现在合并请求中
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: manual
